@@ -1,25 +1,25 @@
 'use strict';
-var Generator = require('yeoman-generator');
-var chalk = require('chalk');
-var yosay = require('yosay');
-var _ = require('lodash');
-var fs = require('fs');
-var mkdirp = require('mkdirp');
-var path = require('path');
+const Generator = require('yeoman-generator');
+const chalk = require('chalk');
+const _ = require('lodash');
+const fs = require('fs');
+const mkdirp = require('mkdirp');
+const path = require('path');
+
+// Custom helper modules.
+const mcLogo = require('./mc-logo');
 
 module.exports = class extends Generator {
   prompting() {
     // Have Yeoman greet the user.
-    this.log(yosay(
-      'Welcome to the cool ' + chalk.red('Mediacurrent D8 theme') + ' generator!'
-    ));
+    this.log(mcLogo);
 
-    // Proved the user with prompts.
+    // Provide the user with prompts.
     var prompts = [
       {
         name: 'themeName',
         message: 'What is your theme\'s human readable name?',
-        default: _.startCase(this.appname) // Default to current folder name
+        default: _.startCase(this.appname) // Default to current folder name.
       },
       {
         name: 'themeNameMachine',
@@ -34,12 +34,14 @@ module.exports = class extends Generator {
         message: 'What is your theme\'s description?',
         default: function (answers) {
           // Default to a helpful reminder to change the description later.
+          // eslint-disable-next-line max-len
           return 'Update ' + answers.themeName + '.info.yml if you want to change the theme description later.';
         }
       },
       {
         type: 'list',
         name: 'whichBaseTheme',
+        // eslint-disable-next-line max-len
         message: 'Which base theme would you like to use? If you don\'t want to use a base theme pick "stable" as that\'s what\'s used by Drupal if you don\'t specify a base.',
         choices: [
           {
@@ -53,63 +55,20 @@ module.exports = class extends Generator {
         ]
       },
       {
-        type: 'checkbox',
-        name: 'howMuchTheme',
-        message: 'What would you like included in this build?',
-        choices: [
-          {
-            value: 'kssNode',
-            name: 'KSS Node style guide'
-          },
-          {
-            value: 'breakpoint',
-            name: 'Breakpoint plugin'
-          },
-          {
-            value: 'singularity',
-            name: 'Singularity Grid System and Breakpoint'
-          }
-        ]
-      },
-      {
+        name: 'ignoreDist',
         type: 'confirm',
-        name: 'kssSections',
-        message: 'Since you\'re using KSS, would you like some sample Style Guide sections?',
-        when: function (answers) {
-          // If baseTheme is true, ask this question.
-          // If it's false skip this question.
-          return (answers.howMuchTheme.includes('kssNode'));
-        }
+        // eslint-disable-next-line max-len
+        message: 'Should we update the .gitignore to ignore compiled files? (i.e. /dist)',
+        default: true
       }
     ];
 
     return this.prompt(prompts).then(function (props) {
-      // Check available options and store them in as easy to use variables.
-      // Returns true or false depending on if the choice is selected.
-      var hasOption = function (choices, opt) {
-        return choices.indexOf(opt) !== -1;
-      };
-
-      this.kssNode = hasOption(props.howMuchTheme, 'kssNode');
-      this.breakpoint = hasOption(props.howMuchTheme, 'breakpoint');
-      this.singularity = hasOption(props.howMuchTheme, 'singularity');
+      // Should we ignore ./dist files or not?
+      this.ignoreDist = props.ignoreDist;
 
       // Add the base theme to the object.
       this.baseTheme = props.whichBaseTheme;
-
-      // Set kssSections if it's needed.
-      if (this.kssNode === true) {
-        this.kssSections = props.kssSections;
-      } else {
-        this.kssSections = false;
-      }
-
-      // If BOTH Singularity and Breakpoint options are checked,
-      // set breakpoint to false as Singularity includes breakpoint
-      // as a dependency.
-      if (this.singularity === true && this.breakpoint === true) {
-        this.breakpoint = false;
-      }
 
       // Create a underscored version of the theme name.
       this.cleanThemeName = _.snakeCase(props.themeName);
@@ -121,11 +80,34 @@ module.exports = class extends Generator {
       this.dashedThemeName = _.kebabCase(props.themeName);
 
       // Get pkg info so we can create a 'generated on' comment.
-      this.pkg = JSON.parse(fs.readFileSync(path.resolve(path.join(__dirname, '../../package.json')), 'utf8'));
+      this.pkg = JSON.parse(
+        fs.readFileSync(
+          path.resolve(path.join(__dirname, '../../package.json')), 'utf8'
+        )
+      );
 
       // To access props later use this.props.someAnswer;
       this.props = props;
     }.bind(this));
+  }
+
+  configuring() {
+    // Add the Drupal libraries file so we can append additional
+    // libraries to it if selected by the user.
+    this.fs.copyTpl(
+      this.templatePath('_theme_name.libraries.yml'),
+      this.destinationPath(this.themeNameMachine + '.libraries.yml'),
+      {
+        themeNameMachine: this.themeNameMachine
+      }
+    );
+
+    // Prompt the user for start kit components. If any are selected
+    // they will be copied over to the patterns folder and the libraries.yml
+    // file will be appended with the component library.
+    this.composeWith('mc-d8-theme:starter-kit', {
+      themeName: this.themeNameMachine
+    });
   }
 
   writing() {
@@ -138,52 +120,128 @@ module.exports = class extends Generator {
         themeName: this.themeNameMachine
       }
     );
-    this.fs.copy(
+    // Only ignore ./dist files if the user has selected
+    // that option.
+    this.fs.copyTpl(
       this.templatePath('gitignore'),
-      this.destinationPath('.gitignore')
+      this.destinationPath('.gitignore'),
+      {
+        ignoreDist: this.ignoreDist
+      }
     );
     this.fs.copy(
       this.templatePath('editorconfig'),
       this.destinationPath('.editorconfig')
     );
     this.fs.copy(
+      this.templatePath('prettierrc.json'),
+      this.destinationPath('.prettierrc.json')
+    );
+    this.fs.copy(
       this.templatePath('_README.md'),
       this.destinationPath('README.md')
     );
     this.fs.copy(
-      this.templatePath('eslintrc.yml'),
-      this.destinationPath('.eslintrc.yml')
+      this.templatePath('eslintrc.json'),
+      this.destinationPath('.eslintrc.json')
     );
     this.fs.copy(
-      this.templatePath('sass-lint.yml'),
-      this.destinationPath('.sass-lint.yml')
+      this.templatePath('stylelintrc.yml'),
+      this.destinationPath('.stylelintrc.yml')
+    );
+    // We need the theme machine name so we can set
+    // correct namespaces.
+    this.fs.copyTpl(
+      this.templatePath('_patternlab-config.json'),
+      this.destinationPath('patternlab-config.json'),
+      {
+        themeNameMachine: this.themeNameMachine
+      }
+    );
+    this.fs.copy(
+      this.templatePath('_src/patterns/global'),
+      this.destinationPath('src/patterns/global')
+    );
+    this.fs.copy(
+      this.templatePath('_src/patterns/components'),
+      this.destinationPath('src/patterns/components')
+    );
+    this.fs.copy(
+      this.templatePath('_helper-components/icons'),
+      this.destinationPath('src/patterns/components/icons')
+    );
+    this.fs.copyTpl(
+      this.templatePath('_helper-components/icons/icons.md'),
+      this.destinationPath('src/patterns/components/icons/icons.md'),
+      {
+        themeNameMachine: this.themeNameMachine
+      }
+    );
+    this.fs.copyTpl(
+      this.templatePath('_helper-components/icons/icons.twig'),
+      this.destinationPath('src/patterns/components/icons/icons.twig'),
+      {
+        themeNameMachine: this.themeNameMachine
+      }
+    );
+    this.fs.copyTpl(
+      this.templatePath('_helper-components/icons/_icons-macro.twig'),
+      this.destinationPath('src/patterns/components/icons/_icons-macro.twig'),
+      {
+        themeNameMachine: this.themeNameMachine
+      }
+    );
+    this.fs.copy(
+      this.templatePath('_src/patterns/layout/.gitkeep'),
+      this.destinationPath('src/patterns/layout/.gitkeep')
+    );
+    this.fs.copy(
+      this.templatePath('_src/patterns/pages/.gitkeep'),
+      this.destinationPath('src/patterns/pages/.gitkeep')
+    );
+    this.fs.copy(
+      this.templatePath('_src/styleguide'),
+      this.destinationPath('src/styleguide')
+    );
+    this.fs.copy(
+      this.templatePath('_src/templates'),
+      this.destinationPath('src/templates')
+    );
+    this.fs.copy(
+      this.templatePath('_src/favicon.ico'),
+      this.destinationPath('src/favicon.ico')
     );
 
-    // Build out the theme folders.
-    mkdirp('src');
-    mkdirp('src/components');
-    mkdirp('src/layout');
+    // Build out the compiled folders.
     mkdirp('dist');
-    mkdirp('src/global');
-    mkdirp('src/global/base');
-    mkdirp('src/global/utils');
-    mkdirp('src/templates');
-    mkdirp('src/layout');
+    mkdirp('dist/css');
+    mkdirp('dist/fonts');
+    mkdirp('dist/images');
+    mkdirp('dist/js');
+
     // Some folders remain empty so add in a gitkeep
     // so they're checked into git.
     this.fs.copy(
       this.templatePath('gitkeep'),
-      this.destinationPath('src/layout/.gitkeep')
+      this.destinationPath('dist/css/.gitkeep')
+    );
+    this.fs.copy(
+      this.templatePath('gitkeep'),
+      this.destinationPath('dist/fonts/.gitkeep')
+    );
+    this.fs.copy(
+      this.templatePath('gitkeep'),
+      this.destinationPath('dist/images/.gitkeep')
+    );
+    this.fs.copy(
+      this.templatePath('gitkeep'),
+      this.destinationPath('dist/js/.gitkeep')
     );
 
     // Add build tools.
-    this.fs.copyTpl(
+    this.fs.copy(
       this.templatePath('_gulpfile.js'),
-      this.destinationPath('gulpfile.js'),
-      {
-        kssNode: this.kssNode,
-        themeNameMachine: this.themeNameMachine
-      }
+      this.destinationPath('gulpfile.js')
     );
     this.fs.copy(
       this.templatePath('_gulp-tasks'),
@@ -204,14 +262,6 @@ module.exports = class extends Generator {
         pkg: this.pkg
       }
     );
-    // Create theme.libraries.yml with data provided.
-    this.fs.copyTpl(
-      this.templatePath('_theme_name.libraries.yml'),
-      this.destinationPath(this.themeNameMachine + '.libraries.yml'),
-      {
-        themeNameMachine: this.themeNameMachine
-      }
-    );
     // Create theme.breakpoints.yml with data provided.
     this.fs.copyTpl(
       this.templatePath('_theme_name.breakpoints.yml'),
@@ -229,124 +279,42 @@ module.exports = class extends Generator {
         themeNameMachine: this.themeNameMachine
       }
     );
-    // Create main global Sass file and partials.
-    this.fs.copy(
-      this.templatePath('_src/_global/_global.scss'),
-      this.destinationPath('src/global/global.scss')
-    );
-    this.fs.copy(
-      this.templatePath('_src/_global/_base'),
-      this.destinationPath('src/global/base')
-    );
-    this.fs.copy(
-      this.templatePath('_src/_global/_utils'),
-      this.destinationPath('src/global/utils')
-    );
-    // The following need variables passed in so they can
-    // conditionally buid the files.
-    this.fs.copyTpl(
-      this.templatePath('_src/_global/_init.scss'),
-      this.destinationPath('src/global/utils/_init.scss'),
-      {
-        breakpoint: this.breakpoint,
-        singularity: this.singularity
-      }
-    );
-    this.fs.copyTpl(
-      this.templatePath('_src/_global/_colors.scss'),
-      this.destinationPath('src/global/utils/_colors.scss'),
-      {
-        kssSections: this.kssSections
-      }
-    );
-    this.fs.copyTpl(
-      this.templatePath('_src/_global/_typography.scss'),
-      this.destinationPath('src/global/utils/_typography.scss'),
-      {
-        kssSections: this.kssSections
-      }
-    );
-
-    // If we're including sample sections, add the icons section,
-    // which is a component.
-    if (this.kssSections === true) {
-      this.fs.copy(
-        this.templatePath('_src/_sample-components/_icons'),
-        this.destinationPath('src/components/icons')
-      );
-      this.fs.copyTpl(
-        this.templatePath('_src/_sample-components/_icons.scss'),
-        this.destinationPath('src/components/icons/icons.scss'),
-        {
-          themeNameMachine: this.themeNameMachine
-        }
-      );
-      this.fs.copyTpl(
-        this.templatePath('_src/_sample-components/_icons/icons.twig'),
-        this.destinationPath('src/components/icons/icons.twig'),
-        {
-          themeNameMachine: this.themeNameMachine
-        }
-      );
-    }
-
-    // If we're including sample sections, add a sample list component.
-    // Use the component and js-behavior subgenerators to build the component.
-    if (this.kssSections === true) {
-      // Add the sample .scss, .json and .twig files.
-      this.composeWith('mc-d8-theme:component', {
-        arguments: ['Sample List']
-      });
-      // Add a sample JavaScript behavior.
-      this.composeWith('mc-d8-theme:js-behavior', {
-        arguments: ['sample-list']
-      });
-    }
 
     this.fs.copy(
       this.templatePath('_screenshot.png'),
       this.destinationPath('screenshot.png')
     );
-
-    // If the KSS Node option is selected, use the subgenerator 'kss-style-guide'.
-    if (this.kssNode === true) {
-      this.composeWith('mc-d8-theme:kss-style-guide', {
-        arguments: [this.props.themeName, this.props.themeNameMachine],
-        options: {
-          gulpExample: false
-        }
-      });
-    }
   }
 
   install() {
-    // Create an empty array for our NodeJS Modules
-    var npmArray = [];
+    // Need to see if we still need this.
+    this.npmInstall();
 
-    // Conditionally install breakpoint or singularity using npm.
-    if (this.breakpoint === true || this.singularity === true) {
-      npmArray.push('breakpoint-sass');
-    }
+    // Install the following node modules specifically for Pattern Lab
+    // and theme generator.
+    // Adding the `yo generator-mc-d8-theme` so users can quickly
+    // run the component sub-generator locally.
+    const npmArray = [
+      '@pattern-lab/core',
+      '@pattern-lab/engine-twig-php',
+      '@pattern-lab/uikit-workshop',
+      'yo',
+      'generator-mc-d8-theme'
+    ];
 
-    if (this.singularity === true) {
-      npmArray.push('singularitygs');
-    }
-
-    // This runs `npm install gulp ... --save-dev` on the command line.
+    // This runs `npm install ... --save-dev` on the command line.
     this.npmInstall(npmArray, {
       saveDev: true
     });
-
-    this.npmInstall();
   }
 
   end() {
     this.log(chalk.cyan.bgBlack.bold(
+      // eslint-disable-next-line indent
 `☠️  NOTE: Your new generated theme contains a fair bit of boilerplate code.
 This is by design. If you don't need it PLEASE delete it.
 You can always rerun the generator some other time in a different directory
 and copy over what you're missing.`));
     this.log(chalk.red('🚀'));
   }
-
 };

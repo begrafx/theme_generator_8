@@ -9,44 +9,40 @@
     "compress": "gulp compress",
     "lint": "gulp lint",
     "clean": "gulp clean",
-    "gulp": "gulp"
+    "gulp": "gulp",
+    "generate": "yo mc-d8-theme:component"
   },
   "babel": {
+    "sourceType": "unambiguous",
     "presets": [
       [
-        "env",
-        {
-          "targets": {
-            "browsers": [
-              "IE >= 9",
-              "last 3 versions"
-            ]
-          }
-        }
+        "@babel/preset-env"
       ]
-    ],
-    "plugins": [
-      "transform-remove-strict-mode"
     ]
   },
   "browserslist": [
-    "IE >= 9",
-    "last 3 versions"
+    "last 2 versions",
+    "not dead"
   ],
   "devDependencies": {
-    "babel-plugin-transform-remove-strict-mode": "0.0.2",
-    "babel-preset-env": "^1.6.0",
-    "browser-sync": "^2.18.12",
-    "del": "^3.0.0",
-    "gulp": "^3.9.1",
-    "gulp-autoprefixer": "^4.0.0",
-    "gulp-babel": "^6.1.2",
-    "gulp-eslint": "^4.0.0",
-    "gulp-imagemin": "^3.3.0",
-    "gulp-rename": "^1.2.2",
-    "gulp-sass": "^3.1.0",
-    "gulp-sass-lint": "^1.3.2",
-    "gulp-sourcemaps": "^2.6.0",
-    "run-sequence": "^2.0.0"
+    "@babel/core": "^7.6.4",
+    "@babel/preset-env": "^7.6.3",
+    "browser-sync": "^2.26.7",
+    "del": "^5.1.0",
+    "gulp": "^4.0.2",
+    "gulp-autoprefixer": "^7.0.1",
+    "gulp-babel": "^8.0.0",
+    "gulp-changed": "^4.0.2",
+    "gulp-concat": "^2.6.1",
+    "gulp-eslint": "^6.0.0",
+    "gulp-imagemin": "^6.1.1",
+    "gulp-order": "^1.2.0",
+    "gulp-rename": "^1.4.0",
+    "gulp-sass": "^4.0.2",
+    "gulp-sourcemaps": "^2.6.5",
+    "gulp-stylelint": "^11.0.0",
+    "prettier-eslint": "^9.0.1",
+    "stylelint": "^12.0.1",
+    "stylelint-scss": "^3.13.0"
   }
 }
